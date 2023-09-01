@@ -4,12 +4,13 @@ import (
 	"bufio"
 	"encoding/json"
 	"errors"
-	"github.com/FloatTech/gg"
 	"os"
 	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/FloatTech/gg"
 )
 
 // Fff 圣遗物武器名匹配
@@ -49,9 +50,8 @@ type Wikimap struct {
 
 // Role 角色信息json解析
 type Role struct {
-	TalentID   map[int]int    `json:"talentId"`
-	TalentKey  map[int]string `json:"talentKey"`
-	Elem       string         `json:"elem"`
+	TalentID   map[string]string `json:"talentId"`
+	Elem       string            `json:"elem"`
 	TalentCons struct {
 		E int `json:"e"`
 		Q int `json:"q"`
@@ -323,12 +323,11 @@ func (m FindMap) Findnames(val string) string {
 
 // Idmap wifeid->wifename
 func (m FindMap) Idmap(val string) string {
-	for k, v := range m {
-		if k == val {
-			return v[0]
-		}
+	f, b := m[val]
+	if !b {
+		return ""
 	}
-	return ""
+	return f[0]
 }
 
 // StringStrip 字符串删空格
@@ -359,40 +358,29 @@ func (m *Fff) Findwq(a string) string {
 }
 
 // GetRole 角色信息
-func GetRole(str string) *Role {
+func GetRole(str string) (*Role, error) {
 	txt, err := os.ReadFile("plugin/kokomi/data/character/" + str + "/data.json")
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	var p Role
-	if nil == json.Unmarshal(txt, &p) {
-		return &p
+	if err = json.Unmarshal(txt, &p); err == nil {
+		return &p, nil
 	}
-	return nil
+	return nil, err
 }
 
 // GetTalentId 天赋列表
 func (m *Role) GetTalentId() []int {
-	var a, e, q int
-	for k, v := range m.TalentKey {
-		switch v {
-		case "a":
-			a = k
-		case "e":
-			e = k
-		case "q":
-			q = k
-		}
-	}
 	f := make([]int, 3)
 	for k, v := range m.TalentID {
 		switch v {
-		case a:
-			f[0] = k
-		case e:
-			f[1] = k
-		case q:
-			f[2] = k
+		case "a":
+			f[0], _ = strconv.Atoi(k)
+		case "e":
+			f[1], _ = strconv.Atoi(k)
+		case "q":
+			f[2], _ = strconv.Atoi(k)
 		}
 	}
 	return f
@@ -487,6 +475,7 @@ func (n Data) ConvertData() (Thisdata, error) {
 	t.Nickname = n.PlayerInfo.Nickname
 	t.Level = n.PlayerInfo.Level
 	for k, v := range n.AvatarInfoList {
+		name := wife.Idmap(strconv.Itoa(v.AvatarID))
 		//数据处理区
 		adds, addf := "元素加伤:", 0.0
 		if v.FightPropMap.Num30*100 > addf {
@@ -534,7 +523,10 @@ func (n Data) ConvertData() (Thisdata, error) {
 		for m := range v.EquipList[l-1].Weapon.AffixMap {
 			wqjl = m
 		}
-		role := GetRole(wife.Idmap(strconv.Itoa(v.AvatarID)))
+		role, err := GetRole(wife.Idmap(strconv.Itoa(v.AvatarID)))
+		if err != nil {
+			return *t, err
+		}
 		talentId := role.GetTalentId()
 		syw := GetSywName()
 		var sywhua, sywyu, sywsha, sywbei, sywguan sywm
@@ -625,7 +617,7 @@ func (n Data) ConvertData() (Thisdata, error) {
 		//导入
 		t.Chars[k] = CharRole{
 			ID:     v.AvatarID,
-			Name:   wife.Idmap(strconv.Itoa(v.AvatarID)),
+			Name:   name,
 			Level:  v.PropMap.Num4001.Val,
 			Fetter: v.FetterInfo.ExpLevel,
 			Cons:   len(v.TalentIDList),
