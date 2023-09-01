@@ -82,6 +82,7 @@ import (
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/dailynews"        // 今日早报
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/danbooru"         // DeepDanbooru二次元图标签识别
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/diana"            // 嘉心糖发病
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/dish"             // 程序员做饭指南
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/drawlots"         // 多功能抽签
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/dress"            // 女装
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/drift_bottle"     // 漂流瓶
@@ -131,6 +132,7 @@ import (
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/setutime"         // 来份涩图
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/shadiao"          // 沙雕app
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/shindan"          // 测定
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/steam"            // steam相关
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/tarot"            // 抽塔罗牌
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/tiangou"          // 舔狗日记
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/tracemoe"         // 搜番
@@ -140,16 +142,17 @@ import (
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/vtbmusic"         // vtb点歌
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/wallet"           // 钱包
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/wangyiyun"        // 网易云音乐热评
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/wantquotes"       // 据意查句
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/warframeapi"      // warframeAPI插件
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/wenben"           // 文本指令大全
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/wenxinAI"         // 百度文心AI画图
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/wife"             // 抽老婆
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/word_count"       // 聊天热词
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/wordle"           // 猜单词
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/ygo"              // 游戏王相关插件
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/ymgal"            // 月幕galgame
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/kokomi"           // kokomi原神面板
 
-	// _ "github.com/FloatTech/ZeroBot-Plugin/plugin/thesaurus"     // 词典匹配回复
 	// _ "github.com/FloatTech/ZeroBot-Plugin/plugin/wtf"           // 鬼东西
 
 	//                               ^^^^                               //
@@ -173,6 +176,8 @@ import (
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/curse" // 骂人
 
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/ai_reply" // 人工智能回复
+
+	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/thesaurus" // 词典匹配回复
 
 	_ "github.com/FloatTech/ZeroBot-Plugin/plugin/breakrepeat" // 打断复读
 
@@ -227,6 +232,7 @@ func init() {
 	late := flag.Uint("l", 233, "Response latency (ms).")
 	rsz := flag.Uint("r", 4096, "Receiving buffer ring size.")
 	maxpt := flag.Uint("x", 4, "Max process time (min).")
+	markmsg := flag.Bool("m", false, "Don't mark message as read automatically")
 
 	flag.Parse()
 
@@ -234,13 +240,12 @@ func init() {
 		fmt.Println("Usage:")
 		flag.PrintDefaults()
 		os.Exit(0)
-	} else {
-		if *d && !*w {
-			logrus.SetLevel(logrus.DebugLevel)
-		}
-		if *w {
-			logrus.SetLevel(logrus.WarnLevel)
-		}
+	}
+	if *d && !*w {
+		logrus.SetLevel(logrus.DebugLevel)
+	}
+	if *w {
+		logrus.SetLevel(logrus.WarnLevel)
 	}
 
 	for _, s := range flag.Args() {
@@ -254,6 +259,9 @@ func init() {
 	// 通过代码写死的方式添加主人账号
 	// sus = append(sus, 12345678)
 	// sus = append(sus, 87654321)
+
+	// 启用 webui
+	// go webctrl.RunGui(*g)
 
 	if *runcfg != "" {
 		f, err := os.Open(*runcfg)
@@ -284,6 +292,7 @@ func init() {
 		RingLen:        *rsz,
 		Latency:        time.Duration(*late) * time.Millisecond,
 		MaxProcessTime: time.Duration(*maxpt) * time.Minute,
+		MarkMessage:    !*markmsg,
 		Driver:         []zero.Driver{config.W[0]},
 	}
 
@@ -300,9 +309,6 @@ func init() {
 		logrus.Infoln("[main] 配置文件已保存到", *save)
 		os.Exit(0)
 	}
-
-	// 启用 webui
-	// go webctrl.RunGui(*g)
 }
 
 func main() {
@@ -310,7 +316,7 @@ func main() {
 		rand.Seed(time.Now().UnixNano()) //nolint: staticcheck
 	}
 	// 帮助
-	zero.OnFullMatchGroup([]string{"/help", ".help", "菜单"}, zero.OnlyToMe).SetBlock(true).
+	zero.OnFullMatchGroup([]string{"help", "/help", ".help", "菜单"}, zero.OnlyToMe).SetBlock(true).
 		Handle(func(ctx *zero.Ctx) {
 			ctx.SendChain(message.Text(banner.Banner, "\n管理发送\"/服务列表\"查看 bot 功能\n发送\"/用法name\"查看功能用法"))
 		})
